@@ -1,0 +1,37 @@
+# -*- mode: ruby -*-
+# vi: set ft=ruby :
+
+VAGRANTFILE_API_VERSION = "2"
+
+Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
+  config.vm.box = "ubuntu/xenial64"
+
+  config.vm.define :xenial_mysql do |mysql|
+    mysql.vm.network "forwarded_port", guest: 3306, host: 13306 
+    mysql.vm.network "private_network", ip: "192.168.33.10"
+    mysql.vm.provision "shell", inline: <<-SHELL
+      sudo debconf-set-selections <<< 'mysql-apt-config mysql-apt-config/select-product select Ok'
+      sudo debconf-set-selections <<< 'mysql-community-server mysql-community-server/root-pass password mysqlRoot'
+      sudo debconf-set-selections <<< 'mysql-community-server mysql-community-server/re-root-pass password mysqlRoot'
+      export DEBIAN_FRONTEND=noninteractive
+      wget https://dev.mysql.com/get/mysql-apt-config_0.8.9-1_all.deb
+      sudo -E dpkg -i mysql-apt-config_0.8.9-1_all.deb
+      sudo apt-get update
+      sudo -E apt-get install -y mysql-community-server
+      sudo sed -i "s/^bind-address/#bind-address/" /etc/mysql/mysql.conf.d/mysqld.cnf
+      sudo service mysql restart
+    SHELL
+  end
+
+#  config.vm.define :xenial_postgresql do |postgresql|
+#  end
+
+  # config.vm.provider "virtualbox" do |vb|
+  #   # Display the VirtualBox GUI when booting the machine
+  #   vb.gui = true
+  #
+  #   # Customize the amount of memory on the VM:
+  #   vb.memory = "1024"
+  # end
+
+end
