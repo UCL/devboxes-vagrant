@@ -1,0 +1,33 @@
+---
+- hosts: all
+  user: vagrant
+  become: True
+  become_method: sudo
+  vars:
+    hadoop_version: 'hadoop-2.5.0'
+    hadoop_dest: /usr/local
+  tasks:
+  - name: Install OpenJDK 7
+    yum:
+      name: java-1.7.0-openjdk.x86_64
+      state: present
+
+  - name: Download and unpack Hadoop
+    unarchive:
+      src: 'https://archive.apache.org/dist/hadoop/core/{{hadoop_version}}/{{hadoop_version}}.tar.gz'
+      dest: '{{hadoop_dest}}'
+      creates: '{{hadoop_dest}}/{{hadoop_version}}/'
+      remote_src: yes
+
+  - name: Configure JAVA_HOME in Hadoop
+    lineinfile:
+      path: '{{hadoop_dest}}/{{hadoop_version}}/etc/hadoop/hadoop-env.sh'
+      regexp: '^export JAVA_HOME'
+      line: 'export JAVA_HOME=$(readlink -f /usr/bin/java | sed "s:bin/java::")'
+
+  - name: Add Hadoop bin folder to PATH
+    lineinfile:
+      path: /etc/profile.d/hadoop.sh
+      create: yes
+      state: present
+      line: 'export PATH={{hadoop_dest}}/{{hadoop_version}}/bin:$PATH'
