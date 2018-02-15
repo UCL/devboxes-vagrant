@@ -1,0 +1,99 @@
+// the header text
+eers.applicationHeader = "UK-PID Registry"
+//
+// DB-configuration
+//
+// esid-db
+dataSource {
+    username = "{{mysql_cred}}"
+    password = "{{mysql_cred}}"
+    dbCreate = "update"
+    url = "jdbc:mysql://127.0.0.1/{{mysql_db_name}}"
+    pooled = "true"
+    dialect = "org.hibernate.dialect.MySQL5InnoDBDialect"
+    driverClassName = "com.mysql.jdbc.Driver"
+}
+
+//
+// Mail-Plugin-configuration 
+//
+// Mail is used to send error messages automatically,
+// in the user contact form
+// and to send email to new users
+// if you do not want to use a mail server: set to false
+grails.mail.service.enabled = false
+// for additional info/configuration: http://grails.org/plugin/mail
+grails {
+    mail {
+        host = "smtp.yourhost.xy"
+        port = 25
+    }
+}
+
+grails.mail.default.from = "yourmail@bla.co.uk"
+// address where mail is send to
+grails.mail.default.to = "yourmail@bla.co.uk"
+
+//
+// Contact information 
+//
+eers.default.telephone = "yourPhoneNumber"
+eers.default.fax = "yourFAXNumber"
+eers.default.address = "your name<br/>your address 1<br/>your address 2<br/>your address 3<br/>your address 4"
+
+//
+// files dir 
+//
+// take care that tomcat has full access to this directory
+// with all subdirectories
+eers.files.dir = "/var/EERS/files"
+// subdirectories of eers.generated.files.dir: tmp, static and imports
+eers.files.tmp.dir = "tmp"
+// in the static directory there have to be two files
+// please do not change the names (of course you can change the content)
+// Data_protect_tutoria.doc -> attachement file for the mail send to a new user
+// NewESIDregistry_user_manual.pdf
+eers.files.static.dir = "static"
+// subdirectory of static
+eers.templates.dir = "templates"
+// subdirectory of templates
+eers.jasper.templates.dir = "jr"
+// subdirectory of templates
+eers.mail.templates.dir = "mail"
+// subdirectory of jasper-reports-templates
+eers.jasper.images.dir = "images"
+// in the imports directory there have to be three files:
+// users_complete.csv -> only needed for the productive system
+// demo_users.csv -> users for demo mode only
+// centres.csv -> definition of your centres (for production and demo)
+eers.files.imports.dir = "imports"
+
+//
+// template file names 
+// in eers.jasper.templates.dir
+// filename without file-ending (should be a jrmxl-file)
+eers.jasper.passwordLetter.template = "newPassword"
+// in eers.mail.templates.dir
+eers.mail.newUser.template = "newUser.gsp"
+
+//
+// generated files prefixes 
+//
+eers.newPasswordLetter.prefix = "ESID-Account-Information_"
+
+//
+// set flag for demo mode - leave blank or delete for production
+//
+//eers.applicationMode = "demo"
+
+//
+// MAINTENANCE-Mode
+//
+eers.maintenanceMode = "off"
+
+// maintenancePassCode needed as param to get to login-screen while maintenanceMode is on i.e.:
+// http://yourserver:yourport/EERS/login/auth?maintenancePassCode=7878
+eers.maintenancePassCode = "7878"
+
+eers.maintenanceHeader = "The System is currently down for maintenance."
+eers.maintenanceMessage = "Thanks for your patience.<br>We'll be back in a few minutes"

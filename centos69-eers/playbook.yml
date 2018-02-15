@@ -1,0 +1,123 @@
+---
+- hosts: all
+  user: vagrant
+  become: True
+  become_method: sudo
+  vars:
+    mysql_port: 3306
+    mysql_bind_address: "127.0.0.1"
+    mysql_db_name: eers_utf8
+    mysql_cred: eersctrl
+    jvm_folder: /usr/java
+    jvm_home: jdk1.8.0_162
+    jvm_cookie: "Cookie:oraclelicense=accept-securebackup-cookie"
+    jdk_url: http://download.oracle.com/otn-pub/java/jdk
+    jdk_file: server-jre-8u162-linux-x64.tar.gz
+    jdk_webdir: 8u162-b12/0da788060d494f5095bf8624735fa2f1
+    tomcat_mirror: http://apache.mirror.anlx.net/tomcat/tomcat-8/
+    tomcat_webdir: v8.5.28/bin/
+    tomcat_file: apache-tomcat-8.5.28.tar.gz
+    tomcat_folder: apache-tomcat-8.5.28
+  tasks:
+    - name: Remove default version of MySQL
+      yum: name=mysql-server state=removed
+
+    - name: Install MySQL yum repository
+      yum: name=http://dev.mysql.com/get/mysql-community-release-el6-5.noarch.rpm state=present
+      
+    - name: Install MySQL server package and python bindings
+      yum: name={{item}} state=present
+      with_items:
+        - mysql-community-server
+        - MySQL-python
+        - libselinux-python
+
+    - name: Copy the my.cnf file
+      template: src=my.cnf.j2 dest=/etc/my.cnf
+
+    - name: Start MySQL
+      service: name=mysqld state=restarted enabled=yes
+
+    - name: Remove anonymous users
+      mysql_user: name='' host=localhost state=absent
+
+    - name: Remove the test database
+      mysql_db: name=test state=absent
+
+    - name: Create database
+      mysql_db: name={{mysql_db_name}} state=present encoding=utf8
+
+    - name: Create database users
+      mysql_user: name={{mysql_cred}} password={{mysql_cred}} priv="{{mysql_db_name}}.*:ALL" state=present host=localhost
+
+    - name: Check if /usr/java directory contains the required JDK
+      stat: path={{jvm_folder}}/{{jvm_home}}
+      register: jdk
+
+    - name: Download Java
+      get_url: url={{jdk_url}}/{{jdk_webdir}}/{{jdk_file}} dest=/tmp/{{jdk_file}} headers={{jvm_cookie}} validate_certs=no 
+      when: jdk.stat.isdir is not defined or jdk.stat.isdir == False
+
+    - name: Create java dir in /usr
+      file: path={{jvm_folder}} state=directory
+      when: jdk.stat.isdir is not defined or jdk.stat.isdir == False
+
+    - name: Extract jdk
+      unarchive: src=/tmp/{{jdk_file}} dest={{jvm_folder}} remote_src=yes owner=root group=root
+      when: jdk.stat.isdir is not defined or jdk.stat.isdir == False
+
+    - name: Set java link
+      action: command update-alternatives --install /usr/bin/java java {{jvm_folder}}/{{jvm_home}}/bin/java 1
+      when: jdk.stat.isdir is not defined or jdk.stat.isdir == False
+
+    - name: Set jar link
+      action: command update-alternatives --install /usr/bin/jar jar {{jvm_folder}}/{{jvm_home}}/bin/jar 1
+      when: jdk.stat.isdir is not defined or jdk.stat.isdir == False
+
+    - name: Add group tomcat
+      group: name=tomcat
+
+    - name: Create tomcat user
+      user: name=tomcat group=tomcat home=/usr/share/tomcat
+
+    - name: Delete home dir for symlink of tomcat
+      file: path=/usr/share/tomcat state=absent
+
+    - name: Download Tomcat 8
+      get_url: url={{tomcat_mirror}}{{tomcat_webdir}}{{tomcat_file}} dest=/tmp/{{tomcat_file}}
+
+    - name: Extract archive
+      unarchive: src=/tmp/{{tomcat_file}} dest=/opt/ creates=/opt/{{tomcat_folder}} remote_src=yes owner=tomcat group=tomcat
+
+    - name: Symlink install directory
+      file: src=/opt/{{tomcat_folder}} path=/usr/share/tomcat state=link
+
+    - name: Install Tomcat init script
+      template: src=tomcat-init.sh.j2 dest=/etc/init.d/tomcat mode=0755
+
+    - name: Configure Tomcat to listen on 127.0.0.1 only
+      replace: dest=/opt/{{tomcat_folder}}/conf/server.xml regexp='    <Connector port="8080" protocol="HTTP/1.1"' replace='    <Connector address="127.0.0.1" port="8080" protocol="HTTP/1.1"'
+
+    - name: Turn off AJP connector in Tomcat
+      replace: dest=/opt/{{tomcat_folder}}/conf/server.xml regexp='    <Connector port="8009" protocol="AJP/1.3" redirectPort="8443" />'
+
+    - name: Start Tomcat
+      service: name=tomcat state=started enabled=yes
+
+    - name: Create EERS directory
+      file: name=/var/EERS/conf state=directory owner=tomcat group=tomcat
+
+    - name: Upload EERS configuration file
+      template: src=EERS-System-conf.groovy.j2 dest=/var/EERS/conf/EERS-System-conf.groovy
+
+    - name: Download EERS
+      unarchive: src=https://cci-esid-art.uniklinik-freiburg.de/downloads/EERS-2.5.zip dest=/home/vagrant remote_src=yes creates=/home/vagrant/EERS-2.5
+
+    - name: Download log4j
+      unarchive: src=http://mirror.ox.ac.uk/sites/rsync.apache.org/logging/log4j/1.2.17/log4j-1.2.17.zip dest=/home/vagrant remote_src=yes creates=/home/vagrant/apache-log4j-1.2.17
+
+    - name: Copy log4j to tomcat
+      copy: src=/home/vagrant/apache-log4j-1.2.17/log4j-1.2.17.jar dest=/usr/share/tomcat/lib/ owner=tomcat group=tomcat remote_src=yes
+
+    - name: Copy EERS to tomcat
+      copy: src=/home/vagrant/EERS-2.5/EERS.war dest=/usr/share/tomcat/webapps/ owner=tomcat group=tomcat remote_src=yes
