@@ -1,0 +1,36 @@
+---
+- hosts: localhost
+  user: vagrant
+
+- hosts: all
+  become: True
+  become_method: sudo
+  vars:
+    virtualenv_dir: /opt/fludetector/venv
+  tasks:
+    - name: Install EPEL repository
+      yum: name=epel-release state=present
+
+    - name: Install Python 3.4 and Pip
+      yum: name={{item}} state=present
+      with_items:
+        - python36
+        - python-pip
+
+    - name: Update pip and virtualenv
+      pip: name={{item}} state=latest
+      with_items:
+        - pip
+        - virtualenv
+
+    - name: Upload requirements.txt
+      copy: src=requirements.txt dest=/tmp
+      
+    - name: Setup gunicorn in virtualenv
+      pip: requirements=/tmp/requirements.txt virtualenv="{{virtualenv_dir}}" virtualenv_command="/usr/bin/python3.6 -m venv"
+
+    - name: Install Supervisor
+      yum: name=supervisor state=present
+      
+    - name: Install Nginx
+      yum: name=nginx state=present
