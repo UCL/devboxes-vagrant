@@ -104,8 +104,16 @@
     - name: Start Tomcat
       service: name=tomcat state=started enabled=yes
 
-    - name: Create EERS directory
-      file: name=/var/EERS/conf state=directory owner=tomcat group=tomcat
+    - name: Create EERS directories
+      file: name=/var/EERS/{{item}} state=directory owner=tomcat group=tomcat
+      with_items:
+        - conf
+        - files/static/templates/mail
+        - files/static/templates/jr
+        - files/static/templates/jr/images
+        - files/tmp
+        - files/imports
+        - files/exports
 
     - name: Upload EERS configuration file
       template: src=EERS-System-conf.groovy.j2 dest=/var/EERS/conf/EERS-System-conf.groovy
