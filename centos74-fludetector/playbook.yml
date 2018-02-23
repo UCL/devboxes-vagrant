@@ -38,6 +38,9 @@
     - name: Create fludetector log directory
       file: path=/opt/fludetector/logs state=directory
 
+    - name: Deploy fludetector Flask app
+      unarchive: src=https://github.com/UCL/fludetector-flask/archive/v1.0.tar.gz dest=/opt/fludetector/ remote_src=yes extra_opts="--strip-components=1"
+
     - name: Install Supervisor
       yum: name=supervisor state=present
 
