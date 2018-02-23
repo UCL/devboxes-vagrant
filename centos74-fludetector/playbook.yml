@@ -7,30 +7,48 @@
   become_method: sudo
   vars:
     virtualenv_dir: /opt/fludetector/venv
+    server_name: fludetector.local
+    listen_as: http
+    fludetector_user: root
   tasks:
     - name: Install EPEL repository
       yum: name=epel-release state=present
 
-    - name: Install Python 3.4 and Pip
+    - name: Install Python 2.7 and Pip
       yum: name={{item}} state=present
       with_items:
-        - python36
+        - python
         - python-pip
+
+    - name: Install SQLite3 and lzop
+      yum: name={{item}} state=latest
+      with_items:
+        - sqlite
+        - lzop
 
     - name: Update pip and virtualenv
       pip: name={{item}} state=latest
       with_items:
         - pip
         - virtualenv
-
-    - name: Upload requirements.txt
-      copy: src=requirements.txt dest=/tmp
       
-    - name: Setup gunicorn in virtualenv
-      pip: requirements=/tmp/requirements.txt virtualenv="{{virtualenv_dir}}" virtualenv_command="/usr/bin/python3.6 -m venv"
+    - name: Setup a Python 2.7 environment
+      shell: virtualenv -p /usr/bin/python2.7 {{virtualenv_dir}}
+
+    - name: Create fludetector log directory
+      file: path=/opt/fludetector/logs state=directory
 
     - name: Install Supervisor
       yum: name=supervisor state=present
+
+    - name: Deploy Supervisor configuration for Flask-Gunicorn app
+      template: src=conf/supervisor.ini.j2 dest=/etc/supervisord.d/fludetector.ini
       
     - name: Install Nginx
       yum: name=nginx state=present
+
+    - name: Deploy Nginx configuration for fludetector
+      template: src=conf/nginx.conf.j2 dest=/etc/nginx/conf.d/fludetector.conf
+
+    - name: Enable nginx port in firewall
+      command: firewall-cmd --zone=public --permanent --add-service={{listen_as}}
