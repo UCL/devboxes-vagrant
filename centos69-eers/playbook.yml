@@ -15,9 +15,10 @@
     jdk_file: server-jre-8u162-linux-x64.tar.gz
     jdk_webdir: 8u162-b12/0da788060d494f5095bf8624735fa2f1
     tomcat_mirror: http://apache.mirror.anlx.net/tomcat/tomcat-8/
-    tomcat_webdir: v8.5.28/bin/
-    tomcat_file: apache-tomcat-8.5.28.tar.gz
-    tomcat_folder: apache-tomcat-8.5.28
+    tomcat_webdir: v8.5.29/bin/
+    tomcat_file: apache-tomcat-8.5.29.tar.gz
+    tomcat_folder: apache-tomcat-8.5.29
+    server_name: 10.97.208.101
   tasks:
     - name: Remove default version of MySQL
       yum: name=mysql-server state=removed
@@ -118,6 +119,13 @@
         - files/imports
         - files/exports
 
+    - name: Create CSV files for EERS
+      copy: src={{item}} dest=/var/EERS/files/imports/{{item}} owner=tomcat group=tomcat
+      with_items:
+        - centres.csv
+        - demo_users.csv
+        - users_complete.csv
+      
     - name: Upload EERS mail templates
       copy: src={{item}} dest=/var/EERS/files/static/templates/mail
       with_items:
@@ -128,13 +136,30 @@
       template: src=EERS-System-conf.groovy.j2 dest=/var/EERS/conf/EERS-System-conf.groovy
 
     - name: Download EERS
-      unarchive: src=https://cci-esid-art.uniklinik-freiburg.de/downloads/EERS-2.5.zip dest=/home/vagrant remote_src=yes creates=/home/vagrant/EERS-2.5
-
-    - name: Download log4j
-      unarchive: src=http://mirror.ox.ac.uk/sites/rsync.apache.org/logging/log4j/1.2.17/log4j-1.2.17.zip dest=/home/vagrant remote_src=yes creates=/home/vagrant/apache-log4j-1.2.17
-
-    - name: Copy log4j to tomcat
-      copy: src=/home/vagrant/apache-log4j-1.2.17/log4j-1.2.17.jar dest=/usr/share/tomcat/lib/ owner=tomcat group=tomcat remote_src=yes
+      unarchive: src=https://cci-esid-art.uniklinik-freiburg.de/downloads/EERS-2.5-NEW.zip dest=/home/vagrant remote_src=yes creates=/home/vagrant/EERS.war
 
     - name: Copy EERS to tomcat
-      copy: src=/home/vagrant/EERS-2.5/EERS.war dest=/usr/share/tomcat/webapps/ owner=tomcat group=tomcat remote_src=yes
+      copy: src=/home/vagrant/EERS.war dest=/usr/share/tomcat/webapps/ owner=tomcat group=tomcat remote_src=yes
+
+    - name: Start Tomcat
+      service: name=tomcat state=started enabled=yes
+
+    - name: Install EPEL release
+      yum: name=epel-release state=present
+
+    - name: Install Nginx
+      yum: name=nginx state=present
+
+    - name: Deploy Nginx configuration
+      template: src=nginx.conf.j2 dest=/etc/nginx/conf.d/eers.conf
+
+    - name: Start Nginx
+      service: name=nginx state=started enabled=yes
+
+    - name: Copy IPTables configuration
+      copy: src=iptables.conf dest=/etc/sysconfig/iptables force=true owner=root group=root mode=0600
+
+    - name: Load new IPTables rules
+      service: name=iptables state=restarted
+
+    
