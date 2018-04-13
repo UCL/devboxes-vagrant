@@ -1,0 +1,59 @@
+---
+- hosts: all
+  user: vagrant
+  become: True
+  become_method: sudo
+  vars:
+    hadoop_version: 'hadoop-3.1.0'
+    hadoop_dest: /usr/local
+  tasks:
+  - name: Install OpenJDK 8
+    yum:
+      name: java-1.8.0-openjdk.x86_64
+      state: present
+
+  - name: Download and unpack Hadoop
+    unarchive:
+      src: 'https://archive.apache.org/dist/hadoop/core/{{hadoop_version}}/{{hadoop_version}}.tar.gz'
+      dest: '{{hadoop_dest}}'
+      creates: '{{hadoop_dest}}/{{hadoop_version}}/'
+      remote_src: yes
+      owner: vagrant
+      group: vagrant
+
+  - name: Configure JAVA_HOME in Hadoop
+    lineinfile:
+      path: '{{hadoop_dest}}/{{hadoop_version}}/etc/hadoop/hadoop-env.sh'
+      regexp: '^export JAVA_HOME'
+      line: 'export JAVA_HOME=$(readlink -f /usr/bin/java | sed "s:bin/java::")'
+
+  - name: Add Hadoop bin folder to PATH
+    lineinfile:
+      path: /etc/profile.d/hadoop.sh
+      create: yes
+      state: present
+      line: 'export PATH={{hadoop_dest}}/{{hadoop_version}}/bin:$PATH'
+
+  - name: Upload configuration files for Single Node Mode
+    copy:
+      src: 'conf/{{item}}'
+      dest: '{{hadoop_dest}}/{{hadoop_version}}/etc/hadoop/{{item}}'
+      force: true
+    with_items:
+      - core-site.xml
+      - hdfs-site.xml
+      - mapred-site.xml
+      - yarn-site.xml
+
+  - name: Format the Hadoop filesystem
+    command: '{{hadoop_dest}}/{{hadoop_version}}/bin/hdfs namenode -format'
+    become: false
+
+  - name: Enable Hadoop/Yarn ports in firewall
+    command: 'firewall-cmd --zone=public --permanent --add-port={{item}}/tcp'
+    with_items:
+      - 9870
+      - 8088
+
+  - name: Reload firewall rules
+    command: firewall-cmd --reload
