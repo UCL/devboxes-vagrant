@@ -72,5 +72,8 @@
     - name: Start nginx
       systemd: name=nginx state=started enabled=yes
 
+    - name: Start supervisord
+      systemd: name=supervisord state=started enabled=yes
+
     - name: Restart firewalld
       systemd: name=firewalld state=restarted
