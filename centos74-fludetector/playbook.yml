@@ -7,7 +7,6 @@
   become_method: sudo
   vars:
     virtualenv_dir: /opt/fludetector/venv
-    server_name: fludetector.local
     listen_as: http
     fludetector_user: root
   tasks:
@@ -39,7 +38,21 @@
       file: path=/opt/fludetector/logs state=directory
 
     - name: Deploy fludetector Flask app
-      unarchive: src=https://github.com/UCL/fludetector-flask/archive/v1.0.tar.gz dest=/opt/fludetector/ remote_src=yes extra_opts="--strip-components=1"
+      unarchive: src=https://github.com/UCL/fludetector-flask/archive/v1.1.tar.gz dest=/opt/fludetector/ remote_src=yes extra_opts="--strip-components=1"
+
+    - name: Copy env file
+      copy: src=conf/env dest=/opt/fludetector/.env
+
+    - name: Configure fludetector Flask app
+      command: /opt/fludetector/scripts/init.sh chdir=/opt/fludetector
+
+    - name: Upload seed data
+      copy: src=conf/seed.sql dest=/opt/fludetector/seed.sql
+
+    - name: Import seed data
+      shell: sqlite3 data.db < seed.sql
+      args:
+        chdir: /opt/fludetector
 
     - name: Install Supervisor
       yum: name=supervisor state=present
@@ -50,8 +63,14 @@
     - name: Install Nginx
       yum: name=nginx state=present
 
-    - name: Deploy Nginx configuration for fludetector
-      template: src=conf/nginx.conf.j2 dest=/etc/nginx/conf.d/fludetector.conf
+    - name: Upload Nginx configuration for fludetector
+      copy: src=conf/nginx.conf dest=/etc/nginx/conf.d/fludetector.conf
 
     - name: Enable nginx port in firewall
       command: firewall-cmd --zone=public --permanent --add-service={{listen_as}}
+
+    - name: Start nginx
+      systemd: name=nginx state=started enabled=yes
+
+    - name: Restart firewalld
+      systemd: name=firewalld state=restarted
