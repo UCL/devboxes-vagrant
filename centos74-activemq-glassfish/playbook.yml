@@ -1,0 +1,95 @@
+---
+- hosts: all
+  user: vagrant
+  become: True
+  become_method: sudo
+  vars:
+    openjdk_version: '1.8.0.151-5.b12.el7_4.x86_64'
+    activemq_version: '5.15.3'
+    glassfish_version: '5.0'
+  tasks:
+  - name: Install OpenJDK 8
+    yum:
+      name: 'java-1.8.0-openjdk-{{openjdk_version}}'
+      state: present
+
+  - name: Download and unpack ActiveMQ
+    unarchive:
+      src: 'http://www.apache.org/dyn/closer.cgi?filename=/activemq/{{activemq_version}}/apache-activemq-{{activemq_version}}-bin.tar.gz&action=download'
+      dest: /opt
+      creates: '/opt/apache-activemq-{{activemq_version}}/'
+      remote_src: yes
+      owner: vagrant
+      group: vagrant
+
+  - name: Create symbolic link to ActiveMQ
+    file:
+      src: '/opt/apache-activemq-{{activemq_version}}/'
+      dest: /opt/activemq
+      owner: vagrant
+      group: vagrant
+      state: link
+
+  - name: Upload Systemd unit file for ActiveMQ
+    copy:
+      src: activemq.service
+      dest: /usr/lib/systemd/system/activemq.service
+        
+  - name: Install unzip
+    yum:
+      name: unzip
+      state: present
+
+  - name: Download and unpack Glassfish
+    unarchive:
+      src: 'http://download.oracle.com/glassfish/{{glassfish_version}}/release/glassfish-{{glassfish_version}}.zip'
+      dest: /opt
+      creates: /opt/glassfish5
+      remote_src: yes
+      owner: vagrant
+      group: vagrant
+
+  - name: Upload Systemd unit file for Glassfish
+    copy:
+      src: glassfish.service
+      dest: /usr/lib/systemd/system/glassfish.service
+
+  - name: Download ActiveMQ RAR
+    get_url:
+      url: 'http://repo1.maven.org/maven2/org/apache/activemq/activemq-rar/{{activemq_version}}/activemq-rar-{{activemq_version}}.rar'
+      dest: /tmp
+    become: False
+
+  - name: Start ActiveMQ and Glassfish
+    service:
+      name: "{{item}}"
+      state: started
+      enabled: yes
+    with_items:
+      - activemq
+      - glassfish
+
+  - name: Deploy ActiveMQ RAR
+    command: '/opt/glassfish5/bin/asadmin deploy --type rar --name activemq-rar /tmp/activemq-rar-{{activemq_version}}.rar'
+    become: false
+
+  - name: Create Resource Adapter Config
+    command: "/opt/glassfish5/bin/asadmin create-resource-adapter-config --threadpoolid thread-pool-1 --property ServerUrl='tcp\\://localhost\\:61616':UserName='admin':Password='admin':UseInboundSession=false activemq-rar"
+    become: false
+
+  - name: Create Connector Connection Pool
+    command: '/opt/glassfish5/bin/asadmin create-connector-connection-pool --raname activemq-rar --connectiondefinition javax.jms.ConnectionFactory --ping true --isconnectvalidatereq true jms/activeMqConnectionPool'
+    become: false
+
+  - name: Create JNDI Admin Object
+    command: '/opt/glassfish5/bin/asadmin create-admin-object --raname activemq-rar --restype javax.jms.Queue --property PhysicalName=MQ.IN jms/queue/MQ.IN'
+
+  - name: Enable Hadoop/Yarn ports in firewall
+    command: 'firewall-cmd --zone=public --permanent --add-port={{item}}/tcp'
+    with_items:
+      - 4848
+      - 8161
+      - 61616
+
+  - name: Reload firewall rules
+    command: firewall-cmd --reload

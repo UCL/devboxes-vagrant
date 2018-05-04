@@ -1,0 +1,11 @@
+[Unit]
+Description=activemq message queue
+After=network.target
+[Service]
+PIDFile=/opt/activemq/data/activemq.pid
+ExecStart=/opt/activemq/bin/activemq start
+ExecStop=/opt/activemq/bin/activemq stop
+User=vagrant
+Group=vagrant
+[Install]
+WantedBy=multi-user.target
