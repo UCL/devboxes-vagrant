@@ -66,12 +66,6 @@
       src: glassfish.service
       dest: /usr/lib/systemd/system/glassfish.service
 
-  - name: Download ActiveMQ RAR
-    get_url:
-      url: 'http://repo1.maven.org/maven2/org/apache/activemq/activemq-rar/{{activemq_version}}/activemq-rar-{{activemq_version}}.rar'
-      dest: /tmp
-    become: False
-
   - name: Start ActiveMQ and Glassfish
     service:
       name: "{{item}}"
@@ -81,21 +75,13 @@
       - activemq
       - glassfish
 
-  - name: Deploy ActiveMQ RAR
-    command: '/opt/glassfish/bin/asadmin deploy --type rar --name activemq-rar /tmp/activemq-rar-{{activemq_version}}.rar'
-    become_user: glassfish
+  - name: Set JMS service type to LOCAL
 
-  - name: Create Resource Adapter Config
-    command: "/opt/glassfish/bin/asadmin create-resource-adapter-config --threadpoolid thread-pool-1 --property ServerUrl='tcp\\://localhost\\:61616':UserName='admin':Password='admin':UseInboundSession=false activemq-rar"
-    become_user: glassfish
+  - name: Enable JMS Bridge Service (edit glassfish/domains/domain1/imq/instances/imqbroker/props/config.properties)
 
-  - name: Create Connector Connection Pool
-    command: '/opt/glassfish/bin/asadmin create-connector-connection-pool --raname activemq-rar --connectiondefinition javax.jms.ConnectionFactory --ping true --isconnectvalidatereq true jms/activeMqConnectionPool'
-    become_user: glassfish
+  - name: Restart Glassfish
 
-  - name: Create JNDI Admin Object
-    command: '/opt/glassfish/bin/asadmin create-admin-object --raname activemq-rar --restype javax.jms.Queue --property PhysicalName=MQ.IN jms/queue/MQ.IN'
-    become_user: glassfish
+  - name: Start STOMP Bridge (listens on localhost:7672)
 
   - name: Configure firewall
     command: 'firewall-cmd --zone=public --permanent --add-port={{item}}/tcp'
