@@ -1,0 +1,102 @@
+---
+- hosts: '{{ target }}'
+  become: True
+  become_method: sudo
+  vars:
+    glassfish_version: '5.0'
+    openmq_queue: 'PubModelScore.Q'
+    jndi_queue: 'PubModelScoreQ'
+  tasks:
+  - name: Create system user for Glassfish
+    user:
+      name: glassfish
+      system: yes
+      local: yes
+      createhome: yes
+      home: /opt/glassfish
+      shell: /bin/nologin
+
+  - name: Install OpenJDK 8
+    yum:
+      name: 'java-1.8.0-openjdk'
+      state: present
+        
+  - name: Install unzip
+    yum:
+      name: unzip
+      state: present
+
+  - name: Download and unpack Glassfish
+    unarchive:
+      src: 'http://download.oracle.com/glassfish/{{glassfish_version}}/release/glassfish-{{glassfish_version}}.zip'
+      dest: /opt
+      creates: /opt/glassfish5
+      remote_src: yes
+      owner: glassfish
+      group: glassfish
+
+  - name: Move Glassfish files to HOME
+    shell: mv /opt/glassfish5/* /opt/glassfish
+    become_user: glassfish
+
+  - name: Remove glassfish5 directory
+    file:
+      path: /opt/glassfish5
+      state: absent
+
+  - name: Upload Systemd unit file for Glassfish
+    copy:
+      src: glassfish.service
+      dest: /usr/lib/systemd/system/glassfish.service
+
+  - name: Start Glassfish
+    service:
+      name: glassfish
+      state: started
+      enabled: yes
+
+  - name: Set JMS service type to LOCAL
+    command: /opt/glassfish/bin/asadmin set server-config.jms-service.type=LOCAL
+    become_user: glassfish
+
+  - name: Restart Glassfish
+    service:
+      name: glassfish
+      state: restarted
+
+  - name: Pause to allow Broker to start
+    pause:
+      seconds: 20
+
+  - name: Enable JMS Bridge Service and STOMP Bridge
+    blockinfile:
+      path: /opt/glassfish/glassfish/domains/domain1/imq/instances/imqbroker/props/config.properties
+      block: |
+        imq.jmsra.managed=true
+        imq.instanceconfig.version=300
+        imq.bridge.enabled=true
+        imq.bridge.admin.user={{openmq_admin_user}}
+        imq.bridge.admin.password={{openmq_admin_pass}}
+        imq.bridge.activelist=stomp
+    become_user: glassfish
+
+  - name: Restart Glassfish
+    service:
+      name: glassfish
+      state: restarted
+
+  - name: Create a JMS physical queue
+    command: '/opt/glassfish/bin/asadmin create-jmsdest --desttype queue {{openmq_queue}}'
+    become_user: glassfish
+
+  - name: Create a JMS resource
+    command: '/opt/glassfish/bin/asadmin create-jms-resource --restype javax.jms.Queue --property Name={{openmq_queue}} jms/{{jndi_queue}}'
+    
+  - name: Configure firewall
+    command: 'firewall-cmd --zone=public --permanent --add-port={{item}}/tcp'
+    with_items:
+      - 7672
+      - 7676
+
+  - name: Reload firewall rules
+    command: firewall-cmd --reload
