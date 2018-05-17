@@ -13,6 +13,11 @@ Vagrant.configure("2") do |config|
   config.vm.provision "ansible" do |ansible|
     ansible.playbook = "playbook.yml"
     ansible.compatibility_mode = "2.0"
+    ansible.extra_vars = {
+      target: "all",
+      openmq_admin_user: "admin",
+      openmq_admin_pass: "admin"
+    }
   end
   
   # Create a forwarded port mapping which allows access to a specific port

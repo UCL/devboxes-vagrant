@@ -76,13 +76,39 @@
       - glassfish
 
   - name: Set JMS service type to LOCAL
-
-  - name: Enable JMS Bridge Service (edit glassfish/domains/domain1/imq/instances/imqbroker/props/config.properties)
+    command: /opt/glassfish/bin/asadmin set server-config.jms-service.type=LOCAL
+    become_user: glassfish
 
   - name: Restart Glassfish
+    service:
+      name: glassfish
+      state: restarted
 
-  - name: Start STOMP Bridge (listens on localhost:7672)
+  - name: Pause to allow Broker to start
+    pause:
+      seconds: 20
 
+  - name: Enable JMS Bridge Service and STOMP Bridge
+    blockinfile:
+      path: /opt/glassfish/glassfish/domains/domain1/imq/instances/imqbroker/props/config.properties
+      block: |
+        imq.jmsra.managed=true
+        imq.instanceconfig.version=300
+        imq.bridge.enabled=true
+        imq.bridge.admin.user={{openmq_admin_user}}
+        imq.bridge.admin.password={{openmq_admin_pass}}
+        imq.bridge.activelist=stomp
+    become_user: glassfish
+
+  - name: Restart Glassfish
+    service:
+      name: glassfish
+      state: restarted
+
+  - name: Create a JMS queue
+    command: /opt/glassfish/bin/asadmin create-jmsdest --desttype queue PublishModelScore.Q
+    become_user: glassfish
+    
   - name: Configure firewall
     command: 'firewall-cmd --zone=public --permanent --add-port={{item}}/tcp'
     with_items:
