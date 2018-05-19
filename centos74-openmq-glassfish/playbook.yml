@@ -16,9 +16,9 @@
       home: /opt/glassfish
       shell: /bin/nologin
 
-  - name: Install OpenJDK 8
+  - name: Install OpenJDK 8 (versions after u151 cause problems in Grizzly/Glassfish 5 that affect Jersey OAuth1 client)
     yum:
-      name: 'java-1.8.0-openjdk'
+      name: 'java-1.8.0-openjdk-1.8.0.151-5.b12.el7_4.x86_64'
       state: present
         
   - name: Install unzip
