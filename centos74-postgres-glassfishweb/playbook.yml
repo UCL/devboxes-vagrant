@@ -1,0 +1,135 @@
+---
+- hosts: '{{ target }}'
+  become: True
+  become_method: sudo
+  vars:
+    glassfish_version: '5.0'
+    database_name: 'fludetector_utf8'
+  tasks:
+  - name: Fix yum repo
+    lineinfile:
+      path: /etc/yum/vars/basereleasever
+      line: 7.4.1708
+      create: yes
+
+  - name: Disable mirrorlist
+    replace:
+      path: /etc/yum.repos.d/CentOS-Base.repo
+      regexp: '^(mirrorlist)'
+      replace: '#\1'
+
+  - name: Enable baseurl
+    replace:
+      path: /etc/yum.repos.d/CentOS-Base.repo
+      regexp: '^#(baseurl)'
+      replace: '\1'
+
+  - name: Amend versions in repo
+    replace:
+      path: /etc/yum.repos.d/CentOS-Base.repo
+      regexp: '(releasever)'
+      replace: 'base\1'
+
+  - name: Install PostgreSQL repo
+    yum:
+      name: https://download.postgresql.org/pub/repos/yum/10/redhat/rhel-7-x86_64/pgdg-centos10-10-2.noarch.rpm
+      state: present
+        
+  - name: Install PostgreSQL server packages
+    yum:
+      name: postgresql10-server
+      state: present
+
+  - name: Init DB
+    command: /usr/pgsql-10/bin/postgresql-10-setup initdb
+    args:
+      creates: /var/lib/pgsql/10/data/PG_VERSION
+
+  - name: Start PostgreSQL
+    service:
+      name: postgresql-10
+      state: started
+      enabled: yes
+
+  - name: Install psycopg2
+    yum:
+      name: python-psycopg2
+      state: present
+      
+  - name: Create a new database
+    postgresql_db:
+      name: '{{database_name}}'
+      encoding: UTF-8
+      lc_collate: en_GB.UTF-8
+      lc_ctype: en_GB.UTF-8
+    become_user: postgres
+
+  - name: Create application user in PostgreSQL
+    postgresql_user:
+      db: '{{database_name}}'
+      name: '{{database_user}}'
+      password: '{{database_pass}}'
+      encrypted: yes
+      priv: ALL
+      role_attr_flags: NOCREATEDB,NOSUPERUSER
+      state: present
+    become_user: postgres
+    
+  - name: Create system user for Glassfish
+    user:
+      name: glassfish
+      system: yes
+      local: yes
+      createhome: yes
+      home: /opt/glassfish
+      shell: /bin/nologin
+
+  - name: Install OpenJDK 8 u151
+    yum:
+      name: 'java-1.8.0-openjdk-1.8.0.151-5.b12.el7_4.x86_64'
+      state: present
+        
+  - name: Install unzip
+    yum:
+      name: unzip
+      state: present
+
+  - name: Download and unpack Glassfish
+    unarchive:
+      src: 'http://download.oracle.com/glassfish/{{glassfish_version}}/release/glassfish-{{glassfish_version}}-web.zip'
+      dest: /opt
+      creates: /opt/glassfish5
+      remote_src: yes
+      owner: glassfish
+      group: glassfish
+
+  - name: Move Glassfish files to HOME
+    shell: mv /opt/glassfish5/* /opt/glassfish
+    args:
+      creates: /opt/glassfish/README.txt
+    become_user: glassfish
+
+  - name: Remove glassfish5 directory
+    file:
+      path: /opt/glassfish5
+      state: absent
+
+  - name: Upload Systemd unit file for Glassfish
+    copy:
+      src: glassfish.service
+      dest: /usr/lib/systemd/system/glassfish.service
+
+  - name: Start Glassfish
+    service:
+      name: glassfish
+      state: started
+      enabled: yes
+    
+  - name: Configure firewall
+    command: 'firewall-cmd --zone=public --permanent --add-port={{item}}/tcp'
+    with_items:
+      - 5432
+      - 8080
+
+  - name: Reload firewall rules
+    command: firewall-cmd --reload
