@@ -24,6 +24,12 @@
       regexp: '^#(baseurl)'
       replace: '\1'
 
+  - name: Change baseurl
+    replace:
+      path: /etc/yum.repos.d/CentOS-Base.repo
+      regexp: 'mirror(.centos.org)'
+      replace: 'vault\1'
+
   - name: Amend versions in repo
     replace:
       path: /etc/yum.repos.d/CentOS-Base.repo
