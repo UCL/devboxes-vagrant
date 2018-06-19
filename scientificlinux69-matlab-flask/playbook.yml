@@ -1,0 +1,82 @@
+---
+- hosts: localhost
+  user: vagrant
+
+- hosts: all
+  become: True
+  become_method: sudo
+  vars:
+    flask_dir: /opt/matlab-flask
+    virtualenv_dir: /opt/matlab-flask/venv
+    installation_key_file: "{{lookup('file', 'installationKey.txt')}}"
+    license_file: license.txt
+  tasks:
+    - name: Install requirements
+      yum:
+        name: "{{item}}"
+        state: present
+      with_items:
+        - gcc
+        - openssl-devel
+        - readline-devel
+        - sqlite-devel
+
+    - name: Download Python 2.7
+      unarchive:
+        src: https://www.python.org/ftp/python/2.7.15/Python-2.7.15.tgz
+        dest: /usr/src
+        remote_src: yes
+
+    - name: Configure Python
+      command: ./configure --with-ensurepip=install
+      args:
+        chdir: /usr/src/Python-2.7.15
+
+    - name: Build Python
+      make:
+        chdir: /usr/src/Python-2.7.15
+        target: altinstall
+
+    - name: Update pip and virtualenv
+      pip:
+        name: "{{item}}"
+        state: latest
+        executable: /usr/local/bin/pip2.7
+      with_items:
+        - pip
+        - virtualenv
+      
+    - name: Setup a Python 2.7 environment
+      command: /usr/local/bin/virtualenv -p /usr/local/bin/python2.7 {{virtualenv_dir}}
+
+    - name: Mount Matlab DVD 1
+      mount:
+        path: /mnt
+        src: /vagrant/R2017a_glnxa64_dvd1.iso
+        fstype: auto
+        opts: loop
+        state: mounted
+
+    - name: Create directory for Matlab archives install
+      file:
+        path: /root/Downloads/MathWorks/R2017a
+        state: directory
+
+    - name: Mount Matlab DVD 2
+      mount:
+        path: /root/Downloads/MathWorks/R2017a
+        src: /vagrant/R2017a_glnxa64_dvd2.iso
+        fstype: auto
+        opts: loop
+        state: mounted
+
+    - name: Install Matlab
+      command: /mnt/install -mode silent -agreeToLicense yes -destinationFolder /opt/MATLAB -fileInstallationKey {{installation_key_file}} -licensePath /vagrant/{{license_file}} -product.MATLAB -product.Statistics_and_Machine_Learning_Toolbox
+
+    - name: Unmount DVDs
+      mount:
+        path: "{{item}}"
+        state: unmounted
+      with_items:
+        - /root/Downloads/MathWorks/R2017a
+        - /mnt
