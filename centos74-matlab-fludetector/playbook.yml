@@ -1,0 +1,149 @@
+---
+- hosts: localhost
+  user: vagrant
+
+- hosts: all
+  become: True
+  become_method: sudo
+  vars:
+    virtualenv_dir: /opt/fludetector/venv
+    listen_as: http
+    fludetector_user: root
+    installation_key_file: "{{lookup('file', 'installationKey.txt')}}"
+    license_file: license.txt
+  tasks:
+    - name: Install EPEL repository
+      yum: name=epel-release state=present
+
+    - name: Install Python 2.7 and Pip
+      yum: name={{item}} state=present
+      with_items:
+        - python
+        - python-pip
+
+    - name: Install SQLite3 and lzop
+      yum: name={{item}} state=latest
+      with_items:
+        - sqlite
+        - lzop
+
+    - name: Update pip and virtualenv
+      pip: name={{item}} state=latest
+      with_items:
+        - pip
+        - virtualenv
+      
+    - name: Setup a Python 2.7 environment
+      shell: virtualenv -p /usr/bin/python2.7 {{virtualenv_dir}}
+
+    - name: Create fludetector log directory
+      file: path=/opt/fludetector/logs state=directory
+
+    - name: Deploy fludetector Flask app
+      unarchive: src=https://github.com/UCL/fludetector-flask/archive/v1.1.tar.gz dest=/opt/fludetector/ remote_src=yes extra_opts="--strip-components=1"
+
+    - name: Copy env file
+      copy: src=conf/env dest=/opt/fludetector/.env
+
+    - name: Configure fludetector Flask app
+      command: /opt/fludetector/scripts/init.sh chdir=/opt/fludetector
+
+    - name: Upload seed data
+      copy: src=conf/seed.sql dest=/opt/fludetector/seed.sql
+
+    - name: Import seed data
+      shell: sqlite3 data.db < seed.sql
+      args:
+        chdir: /opt/fludetector
+
+    - name: Install Supervisor
+      yum: name=supervisor state=present
+
+    - name: Deploy Supervisor configuration for Flask-Gunicorn app
+      template: src=conf/supervisor.ini.j2 dest=/etc/supervisord.d/fludetector.ini
+      
+    - name: Install Nginx
+      yum: name=nginx state=present
+
+    - name: Upload Nginx configuration for fludetector
+      copy: src=conf/nginx.conf dest=/etc/nginx/conf.d/fludetector.conf
+
+    - name: Enable nginx port in firewall
+      command: firewall-cmd --zone=public --permanent --add-service={{listen_as}}
+
+    - name: Start nginx
+      systemd: name=nginx state=started enabled=yes
+
+    - name: Start supervisord
+      systemd: name=supervisord state=started enabled=yes
+
+    - name: Restart firewalld
+      systemd: name=firewalld state=restarted
+
+    - name: Install requirements for Matlab
+      yum:
+        name: "{{item}}"
+        state: present
+      with_items:
+        - libX11
+        - libXext
+        - libXt
+
+    - name: Mount Matlab DVD 1
+      mount:
+        path: /mnt
+        src: /vagrant/R2017a_glnxa64_dvd1.iso
+        fstype: auto
+        opts: loop
+        state: mounted
+
+    - name: Create directory for Matlab archives install
+      file:
+        path: /root/Downloads/MathWorks/R2017a
+        state: directory
+
+    - name: Mount Matlab DVD 2
+      mount:
+        path: /root/Downloads/MathWorks/R2017a
+        src: /vagrant/R2017a_glnxa64_dvd2.iso
+        fstype: auto
+        opts: loop
+        state: mounted
+
+    - name: Install Matlab
+      command: /mnt/install -mode silent -agreeToLicense yes -destinationFolder /opt/MATLAB -fileInstallationKey {{installation_key_file}} -licensePath /vagrant/{{license_file}} -product.MATLAB
+
+    - name: Create symlink to Matlab executable
+      file:
+        path: /usr/local/bin/matlab
+        src: /opt/MATLAB/bin/matlab
+        state: link
+
+    - name: Unmount DVDs
+      mount:
+        path: "{{item}}"
+        state: unmounted
+      with_items:
+        - /root/Downloads/MathWorks/R2017a
+        - /mnt
+
+    - name: Create directory for GPML package
+      file:
+        path: "/opt/fludetector/matlab/gpml"
+        state: directory
+
+    - name: Download GPML package
+      unarchive:
+        src: http://gaussianprocess.org/gpml/code/matlab/release/gpml-matlab-v4.1-2017-10-19.tar.gz
+        dest: "/opt/fludetector/matlab/gpml"
+        remote_src: yes
+        extra_opts: "--strip-components=1"
+
+    - name: Upload Matlab artifacts
+      copy:
+        src: "{{item}}"
+        dest: "/opt/fludetector/matlab"
+      with_items:
+        - infer_ILI_rate_google_2018_04.m
+        - logit.m
+        - gp_model_all_data_logity1.mat

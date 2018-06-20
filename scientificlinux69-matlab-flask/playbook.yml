@@ -74,7 +74,13 @@
         state: mounted
 
     - name: Install Matlab
-      command: /mnt/install -mode silent -agreeToLicense yes -destinationFolder /opt/MATLAB -fileInstallationKey {{installation_key_file}} -licensePath /vagrant/{{license_file}} -product.MATLAB -product.Statistics_and_Machine_Learning_Toolbox
+      command: /mnt/install -mode silent -agreeToLicense yes -destinationFolder /opt/MATLAB -fileInstallationKey {{installation_key_file}} -licensePath /vagrant/{{license_file}} -product.MATLAB
+
+    - name: Create symlink to Matlab executable
+      file:
+        path: /usr/local/bin/matlab
+        src: /opt/MATLAB/bin/matlab
+        state: link
 
     - name: Unmount DVDs
       mount:
