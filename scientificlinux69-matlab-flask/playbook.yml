@@ -20,6 +20,9 @@
         - openssl-devel
         - readline-devel
         - sqlite-devel
+        - libX11
+        - libXext
+        - libXt
 
     - name: Download Python 2.7
       unarchive:
@@ -80,3 +83,25 @@
       with_items:
         - /root/Downloads/MathWorks/R2017a
         - /mnt
+
+    - name: Create directory for GPML package
+      file:
+        path: "{{flask_dir}}/gpml"
+        state: directory
+
+    - name: Download GPML package
+      unarchive:
+        src: http://gaussianprocess.org/gpml/code/matlab/release/gpml-matlab-v4.1-2017-10-19.tar.gz
+        dest: "{{flask_dir}}/gpml"
+        remote_src: yes
+        extra_opts: "--strip-components=1"
+
+    - name: Upload Matlab artifacts
+      copy:
+        src: "{{item}}"
+        dest: "{{flask_dir}}"
+      with_items:
+        - infer_ILI_rate_google_2018_04.m
+        - logit.m
+        - gp_model_all_data_logity1.mat
+
