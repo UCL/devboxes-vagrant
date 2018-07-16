@@ -11,6 +11,8 @@
     fludetector_user: root
     installation_key_file: "{{lookup('file', 'installationKey.txt')}}"
     license_file: license.txt
+    fludetector_version: v2.0
+    model_id: 1
   tasks:
     - name: Install EPEL repository
       yum: name=epel-release state=present
@@ -40,21 +42,10 @@
       file: path=/opt/fludetector/logs state=directory
 
     - name: Deploy fludetector Flask app
-      unarchive: src=https://github.com/UCL/fludetector-flask/archive/v1.1.tar.gz dest=/opt/fludetector/ remote_src=yes extra_opts="--strip-components=1"
+      unarchive: src="https://github.com/UCL/fludetector-flask/archive/{{fludetector_version}}.tar.gz" dest=/opt/fludetector/ remote_src=yes extra_opts="--strip-components=1"
 
     - name: Copy env file
       copy: src=conf/env dest=/opt/fludetector/.env
-
-    - name: Configure fludetector Flask app
-      command: /opt/fludetector/scripts/init.sh chdir=/opt/fludetector
-
-    - name: Upload seed data
-      copy: src=conf/seed.sql dest=/opt/fludetector/seed.sql
-
-    - name: Import seed data
-      shell: sqlite3 data.db < seed.sql
-      args:
-        chdir: /opt/fludetector
 
     - name: Install Supervisor
       yum: name=supervisor state=present
@@ -70,12 +61,6 @@
 
     - name: Enable nginx port in firewall
       command: firewall-cmd --zone=public --permanent --add-service={{listen_as}}
-
-    - name: Start nginx
-      systemd: name=nginx state=started enabled=yes
-
-    - name: Start supervisord
-      systemd: name=supervisord state=started enabled=yes
 
     - name: Restart firewalld
       systemd: name=firewalld state=restarted
@@ -127,6 +112,11 @@
         - /root/Downloads/MathWorks/R2017a
         - /mnt
 
+    - name: Install Matlab engine for Python
+      command: python setup.py install --prefix {{virtualenv_dir}}
+      args:
+        chdir: /opt/MATLAB/extern/engines/python
+
     - name: Create directory for GPML package
       file:
         path: "/opt/fludetector/matlab/gpml"
@@ -147,3 +137,21 @@
         - infer_ILI_rate_google_2018_04.m
         - logit.m
         - gp_model_all_data_logity1.mat
+
+    - name: Configure fludetector Flask app
+      command: /opt/fludetector/scripts/init.sh chdir=/opt/fludetector
+
+    - name: Upload seed data
+      copy: src=conf/seed.sql dest=/opt/fludetector/seed.sql
+
+    - name: Import seed data
+      shell: sqlite3 data.db < seed.sql
+      args:
+        chdir: /opt/fludetector
+
+    - name: Start nginx
+      systemd: name=nginx state=started enabled=yes
+
+    - name: Start supervisord
+      systemd: name=supervisord state=started enabled=yes
+
