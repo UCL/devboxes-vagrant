@@ -1,5 +1,7 @@
 = centos74-matlab-fludetector
 
+This Ansible playbook provisions a CentOS 7.4 machine with a single-node instance of the FluDetector app (https://github.com/UCL/fludetector-flask)
+
 == Requirements
 
 - Ansible (version 2.4.2) - https://www.ansible.com/
@@ -8,11 +10,16 @@
 
 == Installation
 
-Save the FluDetector model tarball archive in this directory
+Save the FluDetector model tarball archive in this directory, edit `hosts.ini` inventory file to set the hostname of the productive system 
+and execute the ansible playbook to install the FluDetector app.
+
+....
+ansible-playbook -i hosts.ini --limit 'productive' -u [remoteuser] -b -k -K playbook.yml
+....
 
 == Testing
 
-A Vagrant (https://www.vagrantup.com/) file is provided for local testing
+A Vagrant (https://www.vagrantup.com/) file is provided for local testing. It requires a CentOS 7.4 box installed with the name 'centos-7.4'. Fire up the vagrant up to test the installation:
 
 ....
 vagrant up
@@ -32,6 +39,7 @@ tar xfO /tmp/FluDetectorModel-Google201804.tar.gz --wildcards '*.sql' | sudo sql
 
 === Calculate model scores 
 
+Install the Google API key in the `.env` file and run a model score calculation for dates in the past.
 ....
 cd /opt/fludetector
 sudo sed -i 's/^\(GOOGLE_API_KEY=\).*/\1APIKEY/' .env
@@ -40,6 +48,7 @@ sudo ./scripts/run.sh runmodel 1 --start [yyyy-mm-dd] --end [yyyy-mm-dd]
 
 === Start scheduler for calculation of model scores
 
+Once the calculation of scores for past dates is completed, start the scheduler to run these calculations automatically on a daily basis.
 ....
 sudo supervisorctl restart fludetector fludetector-google
 ....
