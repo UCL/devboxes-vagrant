@@ -2,6 +2,44 @@
 
 == Requirements
 
-- Vagrant
-- Ansible
-- Matlab
+- Ansible (version 2.4.2) - https://www.ansible.com/
+- Matlab (version R2017a) - https://uk.mathworks.com/products/matlab.html
+- FluDetector model artifacts (version 2018.04) - tarball archive available by request
+
+== Installation
+
+Save the FluDetector model tarball archive in this directory
+
+== Testing
+
+A Vagrant (https://www.vagrantup.com/) file is provided for local testing
+
+....
+vagrant up
+....
+
+The web interface is available on http://localhost:10080/
+
+== Configuration of FluDetector model
+
+=== Install model data in SQLite instance
+
+An SQL script with all the parameters required to run the model is provided in the tarball archive.
+....
+cd /opt/fludetector
+tar xfO /tmp/FluDetectorModel-Google201804.tar.gz --wildcards '*.sql' | sudo sqlite3 data.db
+....
+
+=== Calculate model scores 
+
+....
+cd /opt/fludetector
+sudo sed -i 's/^\(GOOGLE_API_KEY=\).*/\1APIKEY/' .env
+sudo ./scripts/run.sh runmodel 1 --start [yyyy-mm-dd] --end [yyyy-mm-dd]
+....
+
+=== Start scheduler for calculation of model scores
+
+....
+sudo supervisorctl restart fludetector fludetector-google
+....
