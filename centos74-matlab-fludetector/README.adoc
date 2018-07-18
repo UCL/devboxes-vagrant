@@ -1,3 +1,11 @@
+ifdef::env-github[]
+:tip-caption: :bulb:
+:note-caption: :information_source:
+:important-caption: :heavy_exclamation_mark:
+:caution-caption: :fire:
+:warning-caption: :warning:
+endif::[]
+
 = centos74-matlab-fludetector
 
 This Ansible playbook provisions a CentOS 7.4 machine with a single-node instance of the FluDetector app (https://github.com/UCL/fludetector-flask)
