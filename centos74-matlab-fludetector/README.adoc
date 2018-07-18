@@ -8,6 +8,20 @@ This Ansible playbook provisions a CentOS 7.4 machine with a single-node instanc
 - Matlab (version R2017a) - https://uk.mathworks.com/products/matlab.html
 - FluDetector model artifacts (version 2018.04) - tarball archive available by request
 
+=== Matlab
+
+The playbook installs Matlab from the DVD iso files. Make sure the following files are present in the playbook directory:
+
+- `R2017a_glnxa64_dvd1.iso`
+- `R2017a_glnxa64_dvd2.iso`
+- `installationKey.txt` (https://uk.mathworks.com/help/install/ug/install-and-activate-without-an-internet-connection.html)
+- `license.txt` (http://uk.mathworks.com/help/install/ug/install-license-manager-using-a-file-installation-key.html)
+
+[NOTE]
+====
+The `license.txt` file is required for networked installations of Matlab. Edit the playbook if using a different installation method for Matlab.
+====
+
 == Installation
 
 Save the FluDetector model tarball archive in this directory, edit `hosts.ini` inventory file to set the hostname of the productive system 
