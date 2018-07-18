@@ -1,0 +1,7 @@
+= centos74-matlab-fludetector
+
+== Requirements
+
+- Vagrant
+- Ansible
+- Matlab

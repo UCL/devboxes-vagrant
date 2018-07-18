@@ -9,6 +9,8 @@
     virtualenv_dir: /opt/fludetector/venv
     listen_as: http
     fludetector_user: root
+    fludetector_model: FluDetectorModel-Google201804.tar.gz
+    fludetector_sql: model_data_google_2018_04.sql
     installation_key_file: "{{lookup('file', 'installationKey.txt')}}"
     license_file: license.txt
     fludetector_version: v2.0
@@ -104,10 +106,10 @@
         src: /opt/MATLAB/bin/matlab
         state: link
 
-    - name: Unmount DVDs
+    - name: Unmount DVDs and remove from fstab
       mount:
         path: "{{item}}"
-        state: unmounted
+        state: absent
       with_items:
         - /root/Downloads/MathWorks/R2017a
         - /mnt
@@ -124,25 +126,32 @@
 
     - name: Download GPML package
       unarchive:
-        src: http://gaussianprocess.org/gpml/code/matlab/release/gpml-matlab-v4.1-2017-10-19.tar.gz
+        src: http://gaussianprocess.org/gpml/code/matlab/release/gpml-matlab-v4.2-2018-06-11.tar.gz
         dest: "/opt/fludetector/matlab/gpml"
         remote_src: yes
         extra_opts: "--strip-components=1"
 
-    - name: Upload Matlab artifacts
+    - name: Upload FluDetector artifacts
       copy:
-        src: "{{item}}"
-        dest: "/opt/fludetector/matlab"
-      with_items:
-        - infer_ILI_rate_google_2018_04.m
-        - logit.m
-        - gp_model_all_data_logity1.mat
+        src: "{{fludetector_model}}"
+        dest: /tmp
+
+    - name: Deploy Matlab artifacts
+      unarchive:
+        src: "/tmp/{{fludetector_model}}"
+        exclude: "{{fludetector_sql}}"
+        dest: /opt/fludetector/matlab
+        remote_src: yes
 
     - name: Configure fludetector Flask app
-      command: /opt/fludetector/scripts/init.sh chdir=/opt/fludetector
+      command: /opt/fludetector/scripts/init.sh
+      args:
+        chdir: /opt/fludetector
 
     - name: Upload seed data
-      copy: src=conf/seed.sql dest=/opt/fludetector/seed.sql
+      copy:
+        src: conf/seed.sql
+        dest: /opt/fludetector/seed.sql
 
     - name: Import seed data
       shell: sqlite3 data.db < seed.sql
