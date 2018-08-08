@@ -1,0 +1,65 @@
+---
+- hosts: localhost
+  user: vagrant
+
+- hosts: all
+  become: True
+  become_method: sudo
+  vars:
+    virtualenv_dir: /opt/fludetector/venv
+    listen_as: http
+    fludetector_user: root
+    fludetector_model: FluDetectorModel-Google201804.tar.gz
+    fludetector_sql: model_data_google_2018_04.sql
+    installation_key_file: "{{lookup('file', 'installationKey.txt')}}"
+    license_file: license.txt
+    fludetector_version: v2.0
+    model_id: 1
+  tasks:
+    - name: Install EPEL repository
+      yum: name=epel-release state=present
+
+    - name: Install Python 3.4 and Pip
+      yum: name={{item}} state=present
+      with_items:
+        - python34
+        - python34-pip
+
+    - name: Install SQLite3 and lzop
+      yum: name={{item}} state=latest
+      with_items:
+        - sqlite
+        - lzop
+
+    - name: Setup a Python 3.4 environment
+      shell: pyvenv {{virtualenv_dir}}
+
+    - name: Create fludetector log directory
+      file: path=/opt/fludetector/logs state=directory
+
+    - name: Deploy fludetector Flask app
+      unarchive: src=https://github.com/UCL/fludetector-api-flask/archive/v1.0-cr1.tar.gz dest=/opt/fludetector/ remote_src=yes extra_opts="--strip-components=1"
+
+    - name: Install Supervisor
+      yum: name=supervisor state=present
+
+    - name: Deploy Supervisor configuration for Flask-Gunicorn app
+      template: src=conf/supervisor.ini.j2 dest=/etc/supervisord.d/fludetector.ini
+      
+    - name: Install Nginx
+      yum: name=nginx state=present
+
+    - name: Upload Nginx configuration for fludetector
+      copy: src=conf/nginx.conf dest=/etc/nginx/conf.d/fludetector.conf
+
+    - name: Enable nginx port in firewall
+      command: firewall-cmd --zone=public --permanent --add-service={{listen_as}}
+
+    - name: Enable nginx
+      systemd: name=nginx state=started enabled=yes
+
+    - name: Start supervisord
+      systemd: name=supervisord state=started enabled=yes
+
+    - name: Restart firewalld
+      systemd: name=firewalld state=restarted
