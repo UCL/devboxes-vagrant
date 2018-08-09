@@ -6,27 +6,34 @@
   become: True
   become_method: sudo
   vars:
-    virtualenv_dir: /opt/fludetector/venv
+    virtualenv_dir: /opt/fludetector/flask/venv
     listen_as: http
     fludetector_user: root
-    fludetector_model: FluDetectorModel-Google201804.tar.gz
-    fludetector_sql: model_data_google_2018_04.sql
+    fludetector_model: FluDetectorModel-Google201807.tar.gz
+    fludetector_sql: model_data_google_2018_07.sql
+    matlab_localdir: /Volumes/cs-iso/Linux-Software/Matlab/
     installation_key_file: "{{lookup('file', 'installationKey.txt')}}"
     license_file: license.txt
     fludetector_version: v2.0
     model_id: 1
   tasks:
     - name: Install EPEL repository
-      yum: name=epel-release state=present
+      yum:
+        name: epel-release
+        state: present
 
     - name: Install Python 3.4 and Pip
-      yum: name={{item}} state=present
+      yum:
+        name: "{{item}}"
+        state: present
       with_items:
         - python34
         - python34-pip
 
     - name: Install SQLite3 and lzop
-      yum: name={{item}} state=latest
+      yum:
+        name: "{{item}}"
+        state: latest
       with_items:
         - sqlite
         - lzop
@@ -35,31 +42,155 @@
       shell: pyvenv {{virtualenv_dir}}
 
     - name: Create fludetector log directory
-      file: path=/opt/fludetector/logs state=directory
+      file:
+        path: /opt/fludetector/flask/logs
+        state: directory
 
     - name: Deploy fludetector Flask app
-      unarchive: src=https://github.com/UCL/fludetector-api-flask/archive/v1.0-cr1.tar.gz dest=/opt/fludetector/ remote_src=yes extra_opts="--strip-components=1"
+      unarchive:
+        src: https://github.com/UCL/fludetector-api-flask/archive/v1.0-cr1.tar.gz
+        dest: /opt/fludetector/flask/
+        remote_src: yes
+        extra_opts: "--strip-components=1"
 
     - name: Install Supervisor
-      yum: name=supervisor state=present
+      yum:
+        name: supervisor
+        state: present
 
     - name: Deploy Supervisor configuration for Flask-Gunicorn app
-      template: src=conf/supervisor.ini.j2 dest=/etc/supervisord.d/fludetector.ini
+      template:
+        src: conf/supervisor.ini.j2
+        dest: /etc/supervisord.d/fludetector.ini
       
     - name: Install Nginx
-      yum: name=nginx state=present
+      yum:
+        name: nginx
+        state: present
 
     - name: Upload Nginx configuration for fludetector
-      copy: src=conf/nginx.conf dest=/etc/nginx/conf.d/fludetector.conf
+      copy:
+        src: conf/nginx.conf
+        dest: /etc/nginx/conf.d/fludetector.conf
 
     - name: Enable nginx port in firewall
       command: firewall-cmd --zone=public --permanent --add-service={{listen_as}}
 
     - name: Enable nginx
-      systemd: name=nginx state=started enabled=yes
+      systemd:
+        name: nginx
+        state: started
+        enabled: yes
 
     - name: Start supervisord
-      systemd: name=supervisord state=started enabled=yes
+      systemd:
+        name: supervisord
+        state: started
+        enabled: yes
 
     - name: Restart firewalld
-      systemd: name=firewalld state=restarted
+      systemd:
+        name: firewalld
+        state: restarted
+
+    - name: Install requirements for Matlab
+      yum:
+        name: "{{item}}"
+        state: present
+      with_items:
+        - libX11
+        - libXext
+        - libXt
+
+    - name: Create Downloads directory if it doesn't exist
+      file:
+        path: /root/Downloads
+        state: directory
+        
+    - name: Copy Matlab DVDs
+      copy:
+        src: "{{matlab_localdir}}/{{item}}"
+        dest: /root/Downloads/
+      with_items:
+        - R2017a_glnxa64_dvd1.iso
+        - R2017a_glnxa64_dvd2.iso
+
+    - name: Mount Matlab DVD 1
+      mount:
+        path: /mnt
+        src: /root/Downloads/R2017a_glnxa64_dvd1.iso
+        fstype: auto
+        opts: loop
+        state: mounted
+
+    - name: Create directory for Matlab archives install
+      file:
+        path: /root/Downloads/MathWorks/R2017a
+        state: directory
+
+    - name: Mount Matlab DVD 2
+      mount:
+        path: /root/Downloads/MathWorks/R2017a
+        src: /root/Downloads/R2017a_glnxa64_dvd1.iso
+        fstype: auto
+        opts: loop
+        state: mounted
+
+    - name: Copy license file
+      copy:
+        src: "{{license_file}}"
+        dest: /root/
+
+    - name: Install Matlab
+      command: /mnt/install -mode silent -agreeToLicense yes -destinationFolder /opt/MATLAB -fileInstallationKey {{installation_key_file}} -licensePath /root/{{license_file}} -product.MATLAB
+
+    - name: Create symlink to Matlab executable
+      file:
+        path: /usr/local/bin/matlab
+        src: /opt/MATLAB/bin/matlab
+        state: link
+
+    - name: Unmount DVDs and remove from fstab
+      mount:
+        path: "{{item}}"
+        state: absent
+      with_items:
+        - /root/Downloads/MathWorks/R2017a
+        - /mnt
+
+    - name: Delete Matlab iso files
+      file:
+        path: "/root/Downloads/{{item}}"
+        state: absent
+      with_items:
+        - R2017a_glnxa64_dvd1.iso
+        - R2017a_glnxa64_dvd2.iso
+
+    - name: Install Matlab engine for Python
+      command: python3 setup.py install --prefix {{virtualenv_dir}}
+      args:
+        chdir: /opt/MATLAB/extern/engines/python
+
+    - name: Create directory for GPML package
+      file:
+        path: "/opt/fludetector/flask/matlab/gpml"
+        state: directory
+
+    - name: Download GPML package
+      unarchive:
+        src: http://gaussianprocess.org/gpml/code/matlab/release/gpml-matlab-v4.2-2018-06-11.tar.gz
+        dest: "/opt/fludetector/flask/matlab/gpml"
+        remote_src: yes
+        extra_opts: "--strip-components=1"
+
+    - name: Upload FluDetector artifacts
+      copy:
+        src: "{{fludetector_model}}"
+        dest: /tmp
+
+    - name: Deploy Matlab artifacts
+      unarchive:
+        src: "/tmp/{{fludetector_model}}"
+        exclude: "{{fludetector_sql}}"
+        dest: /opt/fludetector/flask/matlab
+        remote_src: yes
