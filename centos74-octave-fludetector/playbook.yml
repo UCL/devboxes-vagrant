@@ -1,0 +1,105 @@
+---
+- hosts: localhost
+  user: vagrant
+
+- hosts: all
+  become: True
+  become_method: sudo
+  vars:
+    virtualenv_dir: /opt/fludetector/venv
+    listen_as: http
+    fludetector_user: root
+    fludetector_model: FluDetectorModel-Google201804.tar.gz
+    fludetector_sql: model_data_google_2018_04.sql
+    installation_key_file: "{{lookup('file', 'installationKey.txt')}}"
+    license_file: license.txt
+    fludetector_version: v2.0
+    model_id: 1
+  tasks:
+    - name: Install EPEL repository
+      yum: name=epel-release state=present
+
+    - name: Install Python 2.7 and Pip
+      yum: name={{item}} state=present
+      with_items:
+        - python
+        - python-pip
+
+    - name: Install SQLite3 and lzop
+      yum: name={{item}} state=latest
+      with_items:
+        - sqlite
+        - lzop
+
+    - name: Update pip and virtualenv
+      pip: name={{item}} state=latest
+      with_items:
+        - pip
+        - virtualenv
+      
+    - name: Setup a Python 2.7 environment
+      shell: virtualenv -p /usr/bin/python2.7 {{virtualenv_dir}}
+
+    - name: Create fludetector log directory
+      file: path=/opt/fludetector/logs state=directory
+
+    - name: Deploy fludetector Flask app
+      unarchive: src="https://github.com/UCL/fludetector-flask/archive/{{fludetector_version}}.tar.gz" dest=/opt/fludetector/ remote_src=yes extra_opts="--strip-components=1"
+
+    - name: Copy env file
+      copy: src=conf/env dest=/opt/fludetector/.env
+
+    - name: Install Nginx
+      yum:
+        name: nginx
+        state: present
+
+    - name: Upload Nginx configuration for fludetector
+      copy:
+        src: conf/nginx.conf
+        dest: /etc/nginx/conf.d/fludetector.conf
+
+    - name: Enable nginx port in firewall
+      command: firewall-cmd --zone=public --permanent --add-service={{listen_as}}
+
+    - name: Restart firewalld
+      systemd:
+        name: firewalld
+        state: restarted
+
+    - name: Upload Octave rpm
+      copy:
+        src: octave-4.2.2-6.el7.centos.1.x86_64.rpm
+        dest: /tmp/
+
+    - name: Install Octave
+      yum:
+        name: /tmp/octave-4.2.2-6.el7.centos.1.x86_64.rpm
+        state: present
+
+    - name: Create directory for GPML package
+      file:
+        path: "/opt/fludetector/octave/gpml"
+        state: directory
+
+    - name: Download GPML package
+      unarchive:
+        src: http://gaussianprocess.org/gpml/code/matlab/release/gpml-matlab-v4.2-2018-06-11.tar.gz
+        dest: "/opt/fludetector/octave/gpml"
+        remote_src: yes
+        extra_opts: "--strip-components=1"
+
+    - name: Upload FluDetector artifacts
+      copy:
+        src: "{{fludetector_model}}"
+        dest: /tmp
+
+    - name: Deploy Matlab artifacts
+      unarchive:
+        src: "/tmp/{{fludetector_model}}"
+        exclude: "{{fludetector_sql}}"
+        dest: /opt/fludetector/octave
+        remote_src: yes
+
+    - name: Start nginx
+      systemd: name=nginx state=started enabled=yes

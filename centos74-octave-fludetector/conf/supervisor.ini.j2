@@ -1,0 +1,9 @@
+[program:fludetector]
+command = /opt/fludetector/scripts/serve.sh
+directory = /opt/fludetector
+user = {{fludetector_user}}
+
+[program:fludetector-google]
+command = /opt/fludetector/scripts/run.sh runmodelscheduler {{model_id}} '30 14 * * *'
+directory = /opt/fludetector
+user = {{fludetector_user}}
