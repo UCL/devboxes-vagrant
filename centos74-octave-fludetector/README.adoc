@@ -45,10 +45,10 @@ The web interface is available on http://localhost:10080/
 
 A script is provided to configure the application
 
-````
+....
 cd /opt/fludetector
 ./scripts/init.sh
-````
+....
 
 === Install model data in SQLite instance
 
