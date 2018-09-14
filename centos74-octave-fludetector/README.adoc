@@ -71,5 +71,5 @@ sudo ./scripts/run.sh runmodel 1 --start [yyyy-mm-dd] --end [yyyy-mm-dd]
 
 Once the calculation of scores for past dates is completed, start the scheduler to run these calculations automatically on a daily basis.
 ....
-sudo supervisorctl restart fludetector fludetector-google
+sudo systemctl start supervisord
 ....

@@ -11,28 +11,35 @@
     fludetector_user: root
     fludetector_model: FluDetectorModel-Google201804.tar.gz
     fludetector_sql: model_data_google_2018_04.sql
-    installation_key_file: "{{lookup('file', 'installationKey.txt')}}"
-    license_file: license.txt
     fludetector_version: v2.1
+    octave_version: 4.2.2-6.el7.centos.1
     model_id: 1
   tasks:
     - name: Install EPEL repository
-      yum: name=epel-release state=present
+      yum:
+        name: epel-release
+        state: present
 
     - name: Install Python 2.7 and Pip
-      yum: name={{item}} state=present
+      yum:
+        name: "{{item}}"
+        state: present
       with_items:
         - python
         - python-pip
 
     - name: Install SQLite3 and lzop
-      yum: name={{item}} state=latest
+      yum:
+        name: "{{item}}"
+        state: latest
       with_items:
         - sqlite
         - lzop
 
     - name: Update pip and virtualenv
-      pip: name={{item}} state=latest
+      pip:
+        name: "{{item}}"
+        state: latest
       with_items:
         - pip
         - virtualenv
@@ -41,13 +48,31 @@
       shell: virtualenv -p /usr/bin/python2.7 {{virtualenv_dir}}
 
     - name: Create fludetector log directory
-      file: path=/opt/fludetector/logs state=directory
+      file:
+        path: /opt/fludetector/logs
+        state: directory
 
     - name: Deploy fludetector Flask app
-      unarchive: src="https://github.com/UCL/fludetector-flask/archive/{{fludetector_version}}.tar.gz" dest=/opt/fludetector/ remote_src=yes extra_opts="--strip-components=1"
+      unarchive:
+        src: "https://github.com/UCL/fludetector-flask/archive/{{fludetector_version}}.tar.gz"
+        dest: /opt/fludetector/
+        remote_src: yes
+        extra_opts: "--strip-components=1"
 
     - name: Copy env file
-      copy: src=conf/env dest=/opt/fludetector/.env
+      copy:
+        src: conf/env
+        dest: /opt/fludetector/.env
+
+    - name: Install Supervisor
+      yum:
+        name: supervisor
+        state: present
+
+    - name: Deploy Supervisor configuration for Flask-Gunicorn app
+      template:
+        src: conf/supervisor.ini.j2
+        dest: /etc/supervisord.d/fludetector.ini
 
     - name: Install Nginx
       yum:
@@ -69,12 +94,12 @@
 
     - name: Upload Octave rpm
       copy:
-        src: octave-4.2.2-6.el7.centos.1.x86_64.rpm
+        src: "octave-{{octave_version}}.x86_64.rpm"
         dest: /tmp/
 
     - name: Install Octave
       yum:
-        name: /tmp/octave-4.2.2-6.el7.centos.1.x86_64.rpm
+        name: "/tmp/octave-{{octave_version}}.x86_64.rpm"
         state: present
 
     - name: Create directory for GPML package
@@ -102,4 +127,7 @@
         remote_src: yes
 
     - name: Start nginx
-      systemd: name=nginx state=started enabled=yes
+      systemd:
+        name: nginx
+        state: started
+        enabled: yes
