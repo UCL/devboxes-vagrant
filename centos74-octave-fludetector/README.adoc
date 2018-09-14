@@ -41,6 +41,15 @@ The web interface is available on http://localhost:10080/
 
 == Configuration of FluDetector model
 
+=== Initial configuration
+
+A script is provided to configure the application
+
+````
+cd /opt/fludetector
+./scripts/init.sh
+````
+
 === Install model data in SQLite instance
 
 An SQL script with all the parameters required to run the model is provided in the tarball archive.

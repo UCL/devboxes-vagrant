@@ -13,7 +13,7 @@
     fludetector_sql: model_data_google_2018_04.sql
     installation_key_file: "{{lookup('file', 'installationKey.txt')}}"
     license_file: license.txt
-    fludetector_version: v2.0
+    fludetector_version: v2.1
     model_id: 1
   tasks:
     - name: Install EPEL repository

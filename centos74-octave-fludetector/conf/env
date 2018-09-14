@@ -2,3 +2,4 @@ GOOGLE_API_KEY=invalidcredential
 ADMIN_USERNAME=invalidcredential
 ADMIN_PASSWORD=invalidcredential
 SECRET_KEY=invalidcredential
+MODEL_ENGINE=octave
