@@ -11,7 +11,7 @@
     fludetector_user: root
     fludetector_model: FluDetectorModel-Google201804.tar.gz
     fludetector_sql: model_data_google_2018_04.sql
-    fludetector_version: v2.1
+    fludetector_version: v2.2
     octave_version: 4.2.2-6.el7.centos.1
     model_id: 1
   tasks:
@@ -129,5 +129,11 @@
     - name: Start nginx
       systemd:
         name: nginx
+        state: started
+        enabled: yes
+
+    - name: Start supervisord
+      systemd:
+        name: supervisord
         state: started
         enabled: yes

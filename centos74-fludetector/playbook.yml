@@ -38,7 +38,7 @@
       file: path=/opt/fludetector/logs state=directory
 
     - name: Deploy fludetector Flask app
-      unarchive: src=https://github.com/UCL/fludetector-flask/archive/v1.1.tar.gz dest=/opt/fludetector/ remote_src=yes extra_opts="--strip-components=1"
+      unarchive: src=https://github.com/UCL/fludetector-flask/archive/v2.2.tar.gz dest=/opt/fludetector/ remote_src=yes extra_opts="--strip-components=1"
 
     - name: Copy env file
       copy: src=conf/env dest=/opt/fludetector/.env
