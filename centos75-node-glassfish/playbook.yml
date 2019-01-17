@@ -1,0 +1,185 @@
+---
+- hosts: '{{ target }}'
+  become: True
+  become_method: sudo
+  vars:
+    glassfish_version: '5.0'
+    nodeapp_version: '0.4'
+    javaeeapp_tag: '0.3'
+    javaeeapp_version: '1.0-SNAPSHOT'
+    pgjdbc_version: '42.2.5'
+  vars_prompt:
+    - name: pg_user
+      prompt: Enter the user for connecting to the database
+      private: no
+    - name: pg_pass
+      prompt: Enter the password for connecting to the database
+      private: yes
+    - name: pg_dbname
+      prompt: Enter the name of the database
+      private: no
+    - name: pg_host
+      prompt: Enter the hostname for the database
+      private: no
+  tasks:
+  - name: Install NodeSource yum repository
+    shell: curl -sL https://rpm.nodesource.com/setup_10.x | sudo bash -
+    args:
+      warn: false
+
+  - name: Install EPEL repository
+    yum:
+      name: epel-release
+      state: present
+
+  - name: Install Node.js and npm
+    yum:
+      name: nodejs
+      state: present
+
+  - name: Create system user for Node
+    user:
+      name: node
+      system: yes
+      local: yes
+      createhome: yes
+      home: /opt/node
+      shell: /sbin/nologin
+
+  - name: Install serve package
+    npm:
+      name: serve
+      global: yes
+
+  - name: Download and unpack Node app
+    unarchive:
+      src: "https://github.com/UCL/takeout-app-react/archive/{{nodeapp_version}}.tar.gz"
+      dest: /opt/node
+      remote_src: yes
+    become_user: node
+
+  - name: Rename Node app directory
+    command: "mv /opt/node/takeout-app-react-{{nodeapp_version}} /opt/node/takeout-app-react"
+    become_user: node
+
+  - name: Install packages from package.json
+    npm:
+      path: /opt/node/takeout-app-react
+      state: present
+      production: yes
+    become_user: node
+
+  - name: Build Node app
+    command: "npm run build"
+    args:
+      chdir: /opt/node/takeout-app-react
+    become_user: node
+    environment:
+      REACT_APP_API_HOST: '/api/takeout-api-javaee'
+
+  - name: Upload systemd configuration file for the Takeout app
+    copy:
+      src: conf/takeout-react.service
+      dest: /etc/systemd/system/takeout-react.service
+
+  - name: Start Node app
+    service:
+      name: takeout-react
+      state: started
+      enabled: yes
+    
+  - name: Create system user for Glassfish
+    user:
+      name: glassfish
+      system: yes
+      local: yes
+      createhome: yes
+      home: /opt/glassfish
+      shell: /sbin/nologin
+
+  - name: Install OpenJDK 8
+    yum:
+      name: java-1.8.0-openjdk-devel
+      state: present
+        
+  - name: Install unzip
+    yum:
+      name: unzip
+      state: present
+
+  - name: Download and unpack Glassfish
+    unarchive:
+      src: 'http://download.oracle.com/glassfish/{{glassfish_version}}/release/glassfish-{{glassfish_version}}.zip'
+      dest: /opt
+      creates: /opt/glassfish5
+      remote_src: yes
+      owner: glassfish
+      group: glassfish
+
+  - name: Move Glassfish files to HOME
+    shell: mv /opt/glassfish5/* /opt/glassfish
+    become_user: glassfish
+
+  - name: Remove glassfish5 directory
+    file:
+      path: /opt/glassfish5
+      state: absent
+
+  - name: Upload Systemd unit file for Glassfish
+    copy:
+      src: conf/glassfish.service
+      dest: /usr/lib/systemd/system/glassfish.service
+
+  - name: Download PostgreSQL JDBC driver
+    get_url:
+      url: 'https://jdbc.postgresql.org/download/postgresql-{{pgjdbc_version}}.jar'
+      dest: /opt/glassfish/glassfish/lib
+      owner: glassfish
+      group: glassfish
+
+  - name: Start Glassfish
+    service:
+      name: glassfish
+      state: started
+      enabled: yes
+
+  - name: Configure JDBC connection pool
+    command: '/opt/glassfish/bin/asadmin create-jdbc-connection-pool --restype javax.sql.ConnectionPoolDataSource --datasourceclassname org.postgresql.ds.PGConnectionPoolDataSource --property portNumber=5432:user={{pg_user}}:password={{pg_pass}}:databaseName={{pg_dbname}}:serverName={{pg_host}} dataPool'
+    become_user: glassfish
+
+  - name: Configure JDBC resource
+    command: '/opt/glassfish/bin/asadmin create-jdbc-resource --connectionpoolid dataPool jdbc/takeout'
+    become_user: glassfish
+
+  - name: Download Takeout API
+    get_url:
+      url: 'https://github.com/UCL/takeout-api-javaee/releases/download/v{{javaeeapp_tag}}/takeout-api-javaee-{{javaeeapp_version}}.war'
+      dest: /tmp
+      owner: glassfish
+      group: glassfish
+
+  - name: Deploy Takeout API
+    command: '/opt/glassfish/bin/asadmin deploy --name takeout-api-javaee --contextroot takeout-api-javaee /tmp/takeout-api-javaee-{{javaeeapp_version}}.war'
+    become_user: glassfish
+
+  - name: Install NGINX
+    yum:
+      name: nginx
+      state: present
+
+  - name: Upload NGINX configuration file
+    copy:
+      src: conf/nginx.conf
+      dest: /etc/nginx/conf.d/takeout.conf
+
+  - name: Start NGINX
+    service:
+      name: nginx
+      state: started
+      enabled: yes
+
+  - name: Configure firewall
+    command: 'firewall-cmd --zone=public --permanent --add-service=http'
+
+  - name: Reload firewall rules
+    command: firewall-cmd --reload

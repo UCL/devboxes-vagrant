@@ -1,0 +1,14 @@
+[Unit]
+Description=Takeout React app - web interface
+Documentation=https://www.github.com/UCL/takeout-app-react
+After=network.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/opt/node/takeout-app-react
+ExecStart=/usr/bin/serve -s build
+Restart=on-failure
+
+[Install]
+WantedBy=multi-user.target
